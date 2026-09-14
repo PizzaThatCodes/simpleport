@@ -12,6 +12,7 @@ services:
       SIMPLEPORT_DATA_DIR: /data
       MINIUPNPC_COMMAND: upnpc
     volumes:
-      - ixVolume:
-          datasetName: simpleport-data
-        mountPath: /data
+      - type: ix_volume
+        ix_volume_config:
+          dataset_name: simpleport-data
+        target: /data
