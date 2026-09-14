@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>SimplePort</title>
+
+  <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+  <!-- =====================================================
+       LOGIN
+       ===================================================== -->
+
+  <div id="loginPage" class="login-page">
+
+    <div class="login-card">
+
+      <div class="brand">
+        <div>
+          <h1>SimplePort</h1>
+          <p>Port forwarding dashboard</p>
+        </div>
+      </div>
+
+      <form id="loginForm">
+
+        <label for="username">Username</label>
+        <input
+          id="username"
+          type="text"
+          autocomplete="username"
+          placeholder="Username"
+          required
+        >
+
+        <label for="password">Password</label>
+        <input
+          id="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Password"
+          required
+        >
+
+        <button class="primary full" type="submit">
+          Sign in
+        </button>
+
+        <p id="loginError" class="error"></p>
+
+      </form>
+
+    </div>
+
+  </div>
+
+
+  <!-- =====================================================
+       DASHBOARD
+       ===================================================== -->
+
+  <div id="dashboard" class="hidden">
+
+    <aside class="sidebar">
+
+      <!-- Brand -->
+
+      <div class="brand sidebar-brand">
+        <div>
+          <strong>SimplePort</strong>
+          <span>Port forwarding</span>
+        </div>
+
+      </div>
+
+
+      <!-- Navigation -->
+
+      <nav class="sidebar-nav">
+
+        <div class="sidebar-section">
+          MANAGEMENT
+        </div>
+
+        <a id="portsNav" class="sidebar-link active" href="#">
+          <span>Port Forwards</span>
+        </a>
+
+        <a id="settingsNav" class="sidebar-link" href="#">
+          <span>Settings</span>
+        </a>
+
+      </nav>
+
+
+      <!-- Sidebar bottom -->
+
+      <div class="sidebar-bottom">
+
+        <div class="status">
+          <span id="gatewayStatusDot" class="status-dot checking"></span>
+          <span id="gatewayStatus">Checking gateway...</span>
+        </div>
+
+        <button id="logoutBtn" class="logout">
+          Log out
+        </button>
+
+      </div>
+
+    </aside>
+
+
+    <!-- ===================================================
+         MAIN CONTENT
+         =================================================== -->
+
+    <main id="portsPage" class="main">
+
+      <!-- Header -->
+
+      <header class="topbar">
+
+        <div>
+          <h2>Port forwards</h2>
+          <p>Manage your active UPnP mappings.</p>
+        </div>
+
+        <div class="topbar-actions">
+          <button id="createBtn" class="primary" type="button">
+            + Create port forward
+          </button>
+        </div>
+
+      </header>
+
+
+      <!-- Toolbar -->
+
+      <section class="toolbar">
+
+        <div class="search">
+
+          <span>⌕</span>
+
+          <input
+            id="search"
+            type="search"
+            placeholder="Search port forwards..."
+            autocomplete="off"
+          >
+
+        </div>
+
+        <button
+          id="deleteSelected"
+          class="danger-outline"
+          disabled
+        >
+          Delete selected
+        </button>
+
+      </section>
+
+
+      <!-- Port forward table -->
+
+      <section class="card">
+
+        <div class="table-head">
+
+          <span
+            class="count"
+            id="count"
+          >
+            0 port forwards
+          </span>
+
+        </div>
+
+
+        <div class="table-wrap">
+
+          <table>
+
+            <thead>
+
+              <tr>
+
+                <th class="check-col">
+                  <input
+                    id="selectAll"
+                    type="checkbox"
+                    aria-label="Select all"
+                  >
+                </th>
+
+                <th>Name</th>
+
+                <th>External</th>
+
+                <th>Internal</th>
+
+                <th>Protocol</th>
+
+                <th>Host</th>
+
+                <th>Status</th>
+
+                <th>Actions</th>
+
+              </tr>
+
+            </thead>
+
+            <tbody id="portsTable"></tbody>
+
+          </table>
+
+        </div>
+
+
+        <!-- Empty state -->
+
+        <div
+          id="empty"
+          class="empty hidden"
+        >
+
+          <div class="empty-icon">
+            ⌁
+          </div>
+
+          <strong>
+            No port forwards found
+          </strong>
+
+          <span>
+            Try a different search or create a new mapping.
+          </span>
+
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+
+  <!-- =====================================================
+       SETTINGS PAGE
+       ===================================================== -->
+
+  <main id="settingsPage" class="main hidden">
+
+    <header class="topbar">
+
+      <div>
+
+        <h2>Settings</h2>
+        <p>Configure how often active port rules are refreshed.</p>
+
+      </div>
+
+      <button id="backToPorts" class="secondary" type="button">
+        Back to port forwards
+      </button>
+
+    </header>
+
+    <section class="settings-panel">
+
+      <form id="settingsForm">
+
+        <label for="refreshDelay">
+          UPnP refresh delay (seconds)
+        </label>
+
+        <input
+          id="refreshDelay"
+          type="number"
+          min="5"
+          max="86400"
+          required
+        >
+
+        <p class="settings-help">
+          SimplePort reapplies each active port rule after this delay. Use at least 5 seconds.
+        </p>
+
+        <div class="modal-actions">
+
+          <button
+            type="submit"
+            class="primary"
+          >
+            Save settings
+          </button>
+
+        </div>
+
+        <p id="settingsError" class="error"></p>
+
+      </form>
+
+    </section>
+
+  </main>
+
+
+  <!-- =====================================================
+       PORT TEST MODAL
+       ===================================================== -->
+
+  <div
+    id="testModal"
+    class="modal hidden"
+  >
+
+    <div class="modal-backdrop"></div>
+
+
+    <div class="modal-card test-modal-card">
+
+      <div class="modal-header">
+
+        <div>
+
+          <h3 id="testModalTitle">
+            Testing port
+          </h3>
+
+          <p>
+            Checking whether the port accepts outside connections.
+          </p>
+
+        </div>
+
+        <button
+          id="testModalClose"
+          class="icon-button"
+          type="button"
+          aria-label="Close"
+        >
+          ×
+        </button>
+
+      </div>
+
+      <div id="testModalResult" class="test-modal-result" aria-live="polite">
+        Testing...
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =====================================================
+       CREATE / EDIT MODAL
+       ===================================================== -->
+
+  <div
+    id="modal"
+    class="modal hidden"
+  >
+
+    <div class="modal-backdrop"></div>
+
+
+    <div class="modal-card">
+
+      <!-- Modal header -->
+
+      <div class="modal-header">
+
+        <div>
+
+          <h3 id="modalTitle">
+            Create port forward
+          </h3>
+
+          <p>
+            Add a new UPnP port mapping.
+          </p>
+
+        </div>
+
+        <button
+          id="closeModal"
+          class="icon-button"
+          type="button"
+          aria-label="Close"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      <!-- Form -->
+
+      <form id="portForm">
+
+        <input
+          id="editId"
+          type="hidden"
+        >
+
+
+        <!-- Name -->
+
+        <label for="name">
+          Name
+        </label>
+
+        <input
+          id="name"
+          type="text"
+          placeholder="e.g. Jellyfin"
+          required
+        >
+
+
+        <!-- Ports -->
+
+        <div class="form-grid">
+
+          <div>
+
+            <label for="externalPort">
+              External port
+            </label>
+
+            <input
+              id="externalPort"
+              type="number"
+              min="1"
+              max="65535"
+              placeholder="8096"
+              required
+            >
+
+          </div>
+
+
+          <div>
+
+            <label for="internalPort">
+              Internal port
+            </label>
+
+            <input
+              id="internalPort"
+              type="number"
+              min="1"
+              max="65535"
+              placeholder="8096"
+              required
+            >
+
+          </div>
+
+        </div>
+
+
+        <!-- Protocol / host -->
+
+        <div class="form-grid">
+
+          <div>
+
+            <label for="protocol">
+              Protocol
+            </label>
+
+            <select id="protocol">
+
+              <option value="TCP">
+                TCP
+              </option>
+
+              <option value="UDP">
+                UDP
+              </option>
+
+              <option value="TCP/UDP">
+                TCP/UDP
+              </option>
+
+            </select>
+
+          </div>
+
+
+          <div>
+
+            <label for="internalHost">
+              Internal host
+            </label>
+
+            <input
+              id="internalHost"
+              type="text"
+              placeholder="10.0.0.219"
+              required
+            >
+
+          </div>
+
+        </div>
+
+
+        <!-- Enabled -->
+
+        <label class="switch-row">
+
+          <span>
+
+            <strong>
+              Enabled
+            </strong>
+
+            <small>
+              Keep this port mapping active.
+            </small>
+
+          </span>
+
+          <input
+            id="enabled"
+            type="checkbox"
+            checked
+          >
+
+        </label>
+
+
+        <!-- Actions -->
+
+        <div class="modal-actions">
+
+          <button
+            type="button"
+            id="cancelModal"
+            class="secondary"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            class="primary"
+          >
+            Save port forward
+          </button>
+
+        </div>
+
+
+        <p
+          id="formError"
+          class="error"
+        ></p>
+
+      </form>
+
+    </div>
+
+  </div>
+
+
+  <script src="/app.js"></script>
+
+</body>
+</html>
+```
