@@ -1,6 +1,7 @@
 let ports = [];
 let gatewayTimer;
 let gatewayCheckInFlight = false;
+let testingSelected = false;
 
 const $ = id => document.getElementById(id);
 
@@ -14,6 +15,7 @@ const table = $("portsTable");
 const empty = $("empty");
 const search = $("search");
 const selectAll = $("selectAll");
+const testSelected = $("testSelected");
 const deleteSelected = $("deleteSelected");
 
 async function api(url, options = {}) {
@@ -180,7 +182,8 @@ function closeModal() {
 
 function updateSelectionState() {
   const selected = [...document.querySelectorAll(".row-check:checked")];
-  deleteSelected.disabled = selected.length === 0;
+  testSelected.disabled = selected.length === 0 || testingSelected;
+  deleteSelected.disabled = selected.length === 0 || testingSelected;
 
   const checks = [...document.querySelectorAll(".row-check")];
   selectAll.checked = checks.length > 0 && selected.length === checks.length;
@@ -308,16 +311,45 @@ async function testPort(id, button) {
     status.classList.add(result.reachable ? "success" : "failure");
     status.title = result.message;
     showTestResult(port, result.reachable, result.message);
+    return result.reachable;
   } catch (error) {
     status.textContent = "Failed";
     status.classList.add("failure");
     status.title = error.message;
     showTestResult(port, false, error.message, true);
+    return false;
   } finally {
     button.disabled = false;
     button.textContent = "Test";
   }
 }
+
+testSelected.addEventListener("click", async () => {
+  const ids = [...document.querySelectorAll(".row-check:checked")]
+    .map(check => check.dataset.id);
+
+  if (!ids.length || testingSelected) return;
+
+  testingSelected = true;
+  updateSelectionState();
+
+  let reachableCount = 0;
+
+  try {
+    for (const id of ids) {
+      const button = document.querySelector(`.test-btn[data-id="${id}"]`);
+      if (button && await testPort(id, button)) reachableCount += 1;
+    }
+
+    const allReachable = reachableCount === ids.length;
+    $("testModalTitle").textContent = allReachable ? "All selected ports are open" : "Some selected ports are closed";
+    $("testModalResult").textContent = `${reachableCount} of ${ids.length} selected port forwards are reachable.`;
+    $("testModalResult").className = `test-modal-result ${allReachable ? "success" : "failure"}`;
+  } finally {
+    testingSelected = false;
+    updateSelectionState();
+  }
+});
 
 function openTestModal(port) {
   $("testModalTitle").textContent = `Testing ${port.name}...`;

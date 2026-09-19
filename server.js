@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const { execFile } = require("child_process");
+require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
 const fs = require("fs");
@@ -86,8 +87,8 @@ function addPortForward(port) {
   return Promise.all(getProtocols(port).map(protocol => runMiniupnpc([
     "-a",
     port.internalHost,
-    String(port.externalPort),
     String(port.internalPort),
+    String(port.externalPort),
     protocol,
     "0"
   ])));

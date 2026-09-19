@@ -1,6 +1,6 @@
 services:
   simpleport:
-    image: ghcr.io/PizzaThatCodes/simpleport:latest
+    image: ghcr.io/pizzathatcodes/simpleport:latest
     restart: unless-stopped
     network_mode: host
     environment:
@@ -12,7 +12,9 @@ services:
       SIMPLEPORT_DATA_DIR: /data
       MINIUPNPC_COMMAND: upnpc
     volumes:
-      - type: ix_volume
-        ix_volume_config:
-          dataset_name: simpleport-data
+      - type: volume
+        source: simpleport-data
         target: /data
+
+volumes:
+  simpleport-data:

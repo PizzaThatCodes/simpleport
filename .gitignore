@@ -1,0 +1,22 @@
+node_modules/
+
+# Local configuration and runtime data
+.env
+.env.*
+!.env.example
+ports.json
+settings.json
+
+# Logs and generated output
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage/
+dist/
+build/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/

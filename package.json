@@ -1,6 +1,6 @@
 {
   "name": "upnp-port-forward-ui",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Simple Express UI for managing UPnP port forwards",
   "author": "PizzaThatCodes (PizzaLover)",
   "main": "server.js",
@@ -9,6 +9,7 @@
     "dev": "node --watch server.js"
   },
   "dependencies": {
+    "dotenv": "^18.0.0",
     "express": "^5.1.0",
     "express-session": "^1.18.2"
   }

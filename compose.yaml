@@ -1,0 +1,14 @@
+services:
+  simpleport:
+    build: .
+    container_name: simpleport
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    environment:
+      PORT: 3000
+      SIMPLEPORT_DATA_DIR: /data
+      MINIUPNPC_COMMAND: upnpc
+    volumes:
+      - ./data:/data
