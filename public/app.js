@@ -1,6 +1,8 @@
 let ports = [];
 let gatewayTimer;
+let portsRefreshTimer;
 let gatewayCheckInFlight = false;
+let portsRefreshInFlight = false;
 let testingSelected = false;
 
 const $ = id => document.getElementById(id);
@@ -52,6 +54,7 @@ function showLogin() {
   dashboard.classList.add("hidden");
   settingsPage.classList.add("hidden");
   clearInterval(gatewayTimer);
+  clearInterval(portsRefreshTimer);
 }
 
 async function showDashboard() {
@@ -62,6 +65,67 @@ async function showDashboard() {
   updateGatewayStatus();
   clearInterval(gatewayTimer);
   gatewayTimer = setInterval(updateGatewayStatus, 10000);
+  clearInterval(portsRefreshTimer);
+  portsRefreshTimer = setInterval(refreshPortStatuses, 30000);
+}
+
+async function refreshPortStatuses() {
+  if (portsRefreshInFlight) return;
+  portsRefreshInFlight = true;
+
+  try {
+    ports = await api("/api/ports");
+    for (const badge of table.querySelectorAll(".port-health-status")) {
+      const port = ports.find(entry => entry.id === badge.dataset.healthId);
+      if (port) updatePortHealthBadge(port, badge);
+    }
+  } catch (error) {
+    console.error(`Could not refresh port statuses: ${error.message}`);
+  } finally {
+    portsRefreshInFlight = false;
+  }
+}
+
+function getPortHealthDisplay(port) {
+  const healthLabels = {
+    up: "Up",
+    down: "Down",
+    error: "Check error",
+    mapped: "Mapped (UDP)"
+  };
+  const healthClasses = {
+    up: "health-up",
+    down: "health-down",
+    error: "health-error",
+    mapped: "health-mapped"
+  };
+
+  if (!port.enabled) {
+    return { label: "Disabled", className: "off", title: "This port forward is disabled." };
+  }
+
+  const health = port.health;
+  if (!health) {
+    return {
+      label: "Checking...",
+      className: "checking",
+      title: "Waiting for the first automatic health check."
+    };
+  }
+
+  return {
+    label: healthLabels[health.status] || "Unknown",
+    className: healthClasses[health.status] || "health-error",
+    title: `Last check: ${new Date(health.checkedAt).toLocaleString()}\n${health.message}`
+  };
+}
+
+function updatePortHealthBadge(port, badge) {
+  const status = getPortHealthDisplay(port);
+  badge.className = `badge port-health-status ${status.className}`;
+  badge.textContent = status.label;
+  badge.title = status.title;
+  badge.setAttribute("aria-label", status.title);
 }
 
 async function updateGatewayStatus() {
@@ -107,6 +171,7 @@ function render() {
 
   filtered.forEach(port => {
     const row = document.createElement("tr");
+    const status = getPortHealthDisplay(port);
 
     row.innerHTML = `
       <td>
@@ -118,8 +183,8 @@ function render() {
       <td>${escapeHtml(port.protocol)}</td>
       <td class="mono">${escapeHtml(port.internalHost)}</td>
       <td>
-        <span class="badge ${port.enabled ? "" : "off"}">
-          ${port.enabled ? "Active" : "Disabled"}
+        <span class="badge port-health-status ${status.className}" data-health-id="${escapeHtml(port.id)}" title="${escapeHtml(status.title)}" aria-label="${escapeHtml(status.title)}">
+          ${escapeHtml(status.label)}
         </span>
       </td>
       <td>
@@ -387,7 +452,7 @@ async function openSettings() {
 
   try {
     const settings = await api("/api/settings");
-    $("refreshDelay").value = settings.refreshDelaySeconds;
+    $("healthCheckInterval").value = settings.healthCheckIntervalSeconds;
   } catch (error) {
     $("settingsError").textContent = error.message;
   }
@@ -401,7 +466,7 @@ $("settingsForm").addEventListener("submit", async event => {
     await api("/api/settings", {
       method: "PUT",
       body: JSON.stringify({
-        refreshDelaySeconds: Number($("refreshDelay").value)
+        healthCheckIntervalSeconds: Number($("healthCheckInterval").value)
       })
     });
 

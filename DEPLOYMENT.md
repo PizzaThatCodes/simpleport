@@ -16,7 +16,9 @@ docker compose up -d --build
 
 The included `compose.yaml` uses host networking deliberately. UPnP discovery uses local-network traffic that often does not cross a normal Docker bridge. When importing this as a custom app in TrueNAS SCALE, use the same host-network setting and mount persistent storage at `/data`.
 
-The port mappings and refresh settings are stored in `/data`. Back up that directory to preserve the SimplePort configuration.
+The port mappings and health-check settings are stored in `/data`. Back up that directory to preserve the SimplePort configuration.
+
+Enabled mappings are applied immediately when created and at app startup. Each renewal is then independently randomized between 6 and 24 hours after the previous attempt. Automatic health checks run every five minutes by default; change the interval in **Settings**. The port status shows the latest check time and result on hover, and failed checks are written to the container logs. TCP checks test reachability; UDP checks can only confirm that the gateway mapping exists. Randomized timings reduce synchronization but do not guarantee a five-minute gap between renewals.
 
 ## HTTPS or remote access
 

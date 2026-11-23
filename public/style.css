@@ -578,6 +578,35 @@ input[type="checkbox"] {
   background: #9ba4ae;
 }
 
+.badge.checking {
+  color: #e0b65c;
+  background: #3a321d;
+}
+
+.badge.checking::before {
+  background: #e0a83a;
+}
+
+.badge.health-down,
+.badge.health-error {
+  color: #ef8f98;
+  background: var(--danger-soft);
+}
+
+.badge.health-down::before,
+.badge.health-error::before {
+  background: var(--danger);
+}
+
+.badge.health-mapped {
+  color: #e0b65c;
+  background: #3a321d;
+}
+
+.badge.health-mapped::before {
+  background: #e0a83a;
+}
+
 /* =========================================================
    TABLE ACTION
    ========================================================= */

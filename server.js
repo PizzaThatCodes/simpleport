@@ -17,11 +17,16 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 const DATA_FILE = path.join(DATA_DIR, "ports.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const SESSION_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
-const DEFAULT_SETTINGS = { refreshDelaySeconds: 30 };
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MIN_FIRST_REFRESH_DELAY_MS = 6 * 60 * 60 * 1000;
+const DEFAULT_SETTINGS = { healthCheckIntervalSeconds: 300 };
 const MINIUPNPC_COMMAND = process.env.MINIUPNPC_COMMAND || "upnpc";
 const SESSION_COOKIE_SECURE = process.env.SESSION_COOKIE_SECURE === "true";
 const refreshTimers = new Map();
+const healthChecks = new Map();
 let cachedPublicIp;
+let healthCheckTimer;
+let healthCheckInProgress = false;
 
 const DEFAULT_PORTS = [
   // {
@@ -112,8 +117,13 @@ async function applyPortForward(port) {
 
 function stopRefreshTimer(id) {
   const timer = refreshTimers.get(id);
-  if (timer) clearInterval(timer);
+  if (timer) clearTimeout(timer);
   refreshTimers.delete(id);
+}
+
+function getRandomRefreshDelay() {
+  return MIN_FIRST_REFRESH_DELAY_MS
+    + Math.floor(Math.random() * (DAY_MS - MIN_FIRST_REFRESH_DELAY_MS + 1));
 }
 
 function startRefreshTimer(port) {
@@ -121,21 +131,35 @@ function startRefreshTimer(port) {
 
   if (!port.enabled) return;
 
-  const delay = loadSettings().refreshDelaySeconds * 1000;
-  const timer = setInterval(() => {
-    addPortForward(port).catch(error => {
+  schedulePortRefresh(port, getRandomRefreshDelay());
+}
+
+function schedulePortRefresh(port, delay) {
+  stopRefreshTimer(port.id);
+
+  const timer = setTimeout(async () => {
+    refreshTimers.delete(port.id);
+
+    try {
+      const currentPort = loadPorts().find(entry => entry.id === port.id);
+      if (!currentPort || !currentPort.enabled) return;
+
+      await addPortForward(currentPort);
+    } catch (error) {
       console.error(`Could not refresh port ${port.externalPort}: ${error.message}`);
-    });
+    }
+
+    try {
+      const currentPort = loadPorts().find(entry => entry.id === port.id);
+      if (currentPort && currentPort.enabled) {
+        schedulePortRefresh(currentPort, getRandomRefreshDelay());
+      }
+    } catch (error) {
+      console.error(`Could not schedule refresh for port ${port.externalPort}: ${error.message}`);
+    }
   }, delay);
 
   refreshTimers.set(port.id, timer);
-}
-
-function restartRefreshTimers() {
-  refreshTimers.forEach((timer, id) => {
-    clearInterval(timer);
-    refreshTimers.delete(id);
-  });
 }
 
 async function applyAllPortForwards() {
@@ -147,6 +171,91 @@ async function applyAllPortForwards() {
       console.error(`Could not apply port ${port.externalPort}: ${error.message}`);
     }
   }
+}
+
+async function testTcpPortForward(port, gatewayOutput) {
+  const publicIp = await getPublicIp();
+  const publicReachable = await testTcpPort(publicIp, port.externalPort);
+
+  if (publicReachable) {
+    return {
+      reachable: true,
+      message: `TCP port ${port.externalPort} accepted an external connection on ${publicIp}.`
+    };
+  }
+
+  const output = gatewayOutput || await runMiniupnpc(["-l"], 5000);
+  const mappingActive = hasUpnpMapping(output, port);
+  const internalReachable = mappingActive && await testTcpPort(port.internalHost, port.internalPort);
+
+  return {
+    reachable: internalReachable,
+    message: internalReachable
+      ? `The UPnP rule is active and ${port.internalHost}:${port.internalPort} accepted a connection. Your router does not support NAT loopback, so the local public-IP check could not be completed.`
+      : `No TCP connection was accepted on ${publicIp}:${port.externalPort}, and the configured internal service could not be verified.`
+  };
+}
+
+async function checkPortHealth(port) {
+  const checkedAt = new Date().toISOString();
+
+  try {
+    const gatewayOutput = await runMiniupnpc(["-l"], 5000);
+    const mappingActive = hasUpnpMapping(gatewayOutput, port);
+
+    let result;
+    if (!mappingActive) {
+      result = {
+        status: "down",
+        message: "The configured UPnP mapping was not found on the gateway."
+      };
+    } else if (port.protocol === "UDP") {
+      result = {
+        status: "mapped",
+        message: "The UPnP mapping exists. UDP service reachability cannot be verified automatically."
+      };
+    } else {
+      const tcpResult = await testTcpPortForward(port, gatewayOutput);
+      result = {
+        status: tcpResult.reachable ? "up" : "down",
+        message: tcpResult.message
+      };
+    }
+
+    healthChecks.set(port.id, { checkedAt, ...result });
+    if (result.status === "down") {
+      console.error(`Health check failed for port ${port.externalPort} (${port.name}): ${result.message}`);
+    }
+  } catch (error) {
+    const message = error.message || "Health check failed";
+    healthChecks.set(port.id, { checkedAt, status: "error", message });
+    console.error(`Could not check port ${port.externalPort} (${port.name}): ${message}`);
+  }
+}
+
+async function runHealthChecks() {
+  if (healthCheckInProgress) return;
+  healthCheckInProgress = true;
+
+  try {
+    for (const port of loadPorts()) {
+      if (port.enabled) await checkPortHealth(port);
+    }
+  } catch (error) {
+    console.error(`Could not load ports for health checks: ${error.message}`);
+  } finally {
+    healthCheckInProgress = false;
+  }
+}
+
+function restartHealthCheckTimer() {
+  clearTimeout(healthCheckTimer);
+  const delay = loadSettings().healthCheckIntervalSeconds * 1000;
+
+  healthCheckTimer = setTimeout(async () => {
+    await runHealthChecks();
+    restartHealthCheckTimer();
+  }, delay);
 }
 
 function requireAuth(req, res, next) {
@@ -196,7 +305,10 @@ app.get("/api/auth", (req, res) => {
 });
 
 app.get("/api/ports", requireAuth, (req, res) => {
-  res.json(loadPorts());
+  res.json(loadPorts().map(port => ({
+    ...port,
+    health: healthChecks.get(port.id) || null
+  })));
 });
 
 app.get("/api/settings", requireAuth, (req, res) => {
@@ -216,17 +328,16 @@ app.get("/api/gateway", requireAuth, async (req, res) => {
 });
 
 app.put("/api/settings", requireAuth, async (req, res) => {
-  const refreshDelaySeconds = Number(req.body.refreshDelaySeconds);
+  const healthCheckIntervalSeconds = Number(req.body.healthCheckIntervalSeconds);
 
-  if (!Number.isInteger(refreshDelaySeconds) || refreshDelaySeconds < 5 || refreshDelaySeconds > 86400) {
-    return res.status(400).json({ error: "Refresh delay must be between 5 and 86400 seconds" });
+  if (!Number.isInteger(healthCheckIntervalSeconds) || healthCheckIntervalSeconds < 60 || healthCheckIntervalSeconds > 86400) {
+    return res.status(400).json({ error: "Health check interval must be between 60 and 86400 seconds" });
   }
 
-  saveSettings({ refreshDelaySeconds });
-  restartRefreshTimers();
-  await applyAllPortForwards();
+  saveSettings({ healthCheckIntervalSeconds });
+  restartHealthCheckTimer();
 
-  res.json({ refreshDelaySeconds });
+  res.json({ healthCheckIntervalSeconds });
 });
 
 function getPublicIp() {
@@ -273,7 +384,7 @@ function testTcpPort(host, port) {
 }
 
 function hasUpnpMapping(output, port) {
-  return getProtocols(port).some(protocol => {
+  return getProtocols(port).every(protocol => {
     const mappingPattern = new RegExp(`\\b${protocol}\\s+${port.externalPort}->`);
     return mappingPattern.test(output);
   });
@@ -294,26 +405,7 @@ app.post("/api/ports/:id/test", requireAuth, async (req, res) => {
   }
 
   try {
-    const publicIp = await getPublicIp();
-    const publicReachable = await testTcpPort(publicIp, port.externalPort);
-
-    if (publicReachable) {
-      return res.json({
-        reachable: true,
-        message: `TCP port ${port.externalPort} accepted an external connection on ${publicIp}.`
-      });
-    }
-
-    const gatewayOutput = await runMiniupnpc(["-l"], 5000);
-    const mappingActive = hasUpnpMapping(gatewayOutput, port);
-    const internalReachable = mappingActive && await testTcpPort(port.internalHost, port.internalPort);
-
-    res.json({
-      reachable: internalReachable,
-      message: internalReachable
-        ? `The UPnP rule is active and ${port.internalHost}:${port.internalPort} accepted a connection. Your router does not support NAT loopback, so the local public-IP check could not be completed.`
-        : `No TCP connection was accepted on ${publicIp}:${port.externalPort}, and the configured internal service could not be verified.`
-    });
+    res.json(await testTcpPortForward(port));
   } catch (error) {
     res.status(502).json({ error: error.message });
   }
@@ -352,6 +444,7 @@ app.post("/api/ports", requireAuth, (req, res) => {
       ports.push(entry);
       savePorts(ports);
       startRefreshTimer(entry);
+      if (entry.enabled) checkPortHealth(entry);
       res.status(201).json(entry);
     })
     .catch(error => {
@@ -400,6 +493,11 @@ app.put("/api/ports/:id", requireAuth, async (req, res) => {
     ports[index] = updated;
     savePorts(ports);
     startRefreshTimer(updated);
+    if (updated.enabled) {
+      checkPortHealth(updated);
+    } else {
+      healthChecks.delete(updated.id);
+    }
     res.json(updated);
   } catch (error) {
     res.status(502).json({ error: `Could not configure port forward: ${error.message}` });
@@ -417,6 +515,7 @@ app.delete("/api/ports/:id", requireAuth, async (req, res) => {
   try {
     if (port.enabled) await removePortForward(port);
     stopRefreshTimer(port.id);
+    healthChecks.delete(port.id);
     savePorts(ports.filter(p => p.id !== req.params.id));
     res.json({ success: true });
   } catch (error) {
@@ -440,6 +539,7 @@ app.post("/api/ports/delete", requireAuth, async (req, res) => {
     }
 
     selected.forEach(port => stopRefreshTimer(port.id));
+    selected.forEach(port => healthChecks.delete(port.id));
     savePorts(ports.filter(port => !ids.includes(port.id)));
     res.json({ success: true });
   } catch (error) {
@@ -453,5 +553,6 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   console.log(`UPnP Port Forward UI running on http://localhost:${PORT}`);
-  applyAllPortForwards();
+  applyAllPortForwards().then(runHealthChecks);
+  restartHealthCheckTimer();
 });

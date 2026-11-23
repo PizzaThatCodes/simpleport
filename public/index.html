@@ -273,7 +273,7 @@
       <div>
 
         <h2>Settings</h2>
-        <p>Configure how often active port rules are refreshed.</p>
+        <p>Configure automatic port health checks.</p>
 
       </div>
 
@@ -287,20 +287,20 @@
 
       <form id="settingsForm">
 
-        <label for="refreshDelay">
-          UPnP refresh delay (seconds)
+        <label for="healthCheckInterval">
+          Health check interval (seconds)
         </label>
 
         <input
-          id="refreshDelay"
+          id="healthCheckInterval"
           type="number"
-          min="5"
+          min="60"
           max="86400"
           required
         >
 
         <p class="settings-help">
-          SimplePort reapplies each active port rule after this delay. Use at least 5 seconds.
+          Port rules are applied immediately, then each renewal is independently randomized between 6 and 24 hours after the previous attempt. TCP rules are tested for reachability; UDP checks can only confirm the gateway mapping exists. Randomized timings do not guarantee a five-minute gap between renewals.
         </p>
 
         <div class="modal-actions">
