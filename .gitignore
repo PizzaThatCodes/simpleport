@@ -6,6 +6,7 @@ node_modules/
 !.env.example
 ports.json
 settings.json
+logs.json
 
 # Logs and generated output
 *.log

@@ -11,6 +11,8 @@ services:
       SESSION_COOKIE_SECURE: "false"
       SIMPLEPORT_DATA_DIR: /data
       MINIUPNPC_COMMAND: upnpc
+      ROUTER_ADMIN_USERNAME: ""
+      ROUTER_ADMIN_PASSWORD: ""
     volumes:
       - type: volume
         source: simpleport-data

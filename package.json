@@ -11,6 +11,7 @@
   "dependencies": {
     "dotenv": "^18.0.0",
     "express": "^5.1.0",
-    "express-session": "^1.18.2"
+    "express-session": "^1.18.2",
+    "puppeteer-core": "^25.18.1"
   }
 }

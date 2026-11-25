@@ -86,12 +86,21 @@
           MANAGEMENT
         </div>
 
-        <a id="portsNav" class="sidebar-link active" href="#">
+        <a id="portsNav" class="sidebar-link active" href="#ports">
           <span>Port Forwards</span>
         </a>
 
-        <a id="settingsNav" class="sidebar-link" href="#">
+        <a id="settingsNav" class="sidebar-link" href="#settings">
           <span>Settings</span>
+        </a>
+
+        <a id="routerUpnpNav" class="sidebar-link hidden" href="#router-monitor">
+          <span>Router Monitor</span>
+        </a>
+
+        <a id="logsNav" class="sidebar-link" href="#logs">
+          <span>Logs</span>
+          <span id="logCount" class="log-count"></span>
         </a>
 
       </nav>
@@ -261,6 +270,96 @@
 
   </div>
 
+  <main id="logsPage" class="main hidden">
+
+    <header class="topbar">
+
+      <div>
+        <h2>Logs</h2>
+        <p>Warnings and errors from port management, health checks, and router UPnP recovery.</p>
+      </div>
+
+      <div class="topbar-actions">
+        <button id="refreshLogsButton" class="secondary" type="button">Refresh</button>
+        <button id="clearLogsButton" class="danger-outline" type="button">Clear logs</button>
+      </div>
+
+    </header>
+
+    <p id="logsError" class="error"></p>
+    <section id="logsList" class="logs-list" aria-live="polite"></section>
+
+  </main>
+
+  <main id="routerUpnpPage" class="main hidden">
+
+    <header class="topbar">
+
+      <div>
+        <h2>Router UPnP monitor</h2>
+        <p>Live status and activity for automatic UPnP recovery.</p>
+      </div>
+
+      <div class="topbar-actions">
+        <button id="routerUpnpCheckButton" class="primary" type="button">Check now</button>
+        <button id="routerUpnpSettingsButton" class="secondary hidden" type="button">Configure in Settings</button>
+        <button id="routerUpnpBackButton" class="secondary" type="button">Back to port forwards</button>
+      </div>
+
+    </header>
+
+    <p id="routerUpnpError" class="error"></p>
+
+    <div id="routerUpnpActivityColumn" class="router-monitor-activity-column">
+      <section id="routerUpnpStatusPanel" class="router-monitor-panel">
+        <div class="router-monitor-heading">
+          <div>
+            <h3>Current status</h3>
+            <p id="routerUpnpStep">Waiting for status...</p>
+          </div>
+          <span id="routerUpnpStatus" class="router-status-badge checking">Checking</span>
+        </div>
+
+        <p id="routerUpnpMessage" class="router-monitor-message" aria-live="polite"></p>
+
+        <dl class="router-monitor-times">
+          <div>
+            <dt>Last check</dt>
+            <dd id="routerUpnpLastCheck">Never</dd>
+          </div>
+          <div>
+            <dt>Next check</dt>
+            <dd id="routerUpnpNextCheck">Not scheduled</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section id="routerUpnpActivityPanel" class="router-monitor-panel">
+        <div class="router-monitor-heading">
+          <div>
+            <h3>Live activity</h3>
+            <p>Latest check only. Previous warnings and errors remain in Logs.</p>
+          </div>
+        </div>
+        <div id="routerUpnpEvents" class="router-monitor-events" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <section id="routerUpnpScreenPanel" class="router-monitor-panel">
+      <div class="router-monitor-heading">
+        <div>
+          <h3>Live browser screen</h3>
+          <p>See the router page the automated check is interacting with.</p>
+        </div>
+      </div>
+      <p id="routerUpnpScreenHint" class="router-monitor-empty">Waiting for the router browser to start.</p>
+      <div class="router-screen-frame">
+        <img id="routerUpnpScreen" class="hidden" alt="Live view of the router browser">
+      </div>
+    </section>
+
+  </main>
+
 
   <!-- =====================================================
        SETTINGS PAGE
@@ -273,7 +372,7 @@
       <div>
 
         <h2>Settings</h2>
-        <p>Configure automatic port health checks.</p>
+        <p>Configure port health checks and router UPnP recovery.</p>
 
       </div>
 
@@ -283,9 +382,11 @@
 
     </header>
 
-    <section class="settings-panel">
+    <form id="settingsForm" class="settings-form">
 
-      <form id="settingsForm">
+      <section class="settings-panel">
+
+        <h3>Port health checks</h3>
 
         <label for="healthCheckInterval">
           Health check interval (seconds)
@@ -300,25 +401,63 @@
         >
 
         <p class="settings-help">
-          Port rules are applied immediately, then each renewal is independently randomized between 6 and 24 hours after the previous attempt. TCP rules are tested for reachability; UDP checks can only confirm the gateway mapping exists. Randomized timings do not guarantee a five-minute gap between renewals.
+          TCP rules are tested for reachability; UDP checks can only confirm that the gateway mapping exists.
         </p>
 
-        <div class="modal-actions">
+      </section>
 
-          <button
-            type="submit"
-            class="primary"
-          >
-            Save settings
-          </button>
+      <section class="settings-panel">
 
-        </div>
+        <h3>Router UPnP auto-recovery</h3>
 
-        <p id="settingsError" class="error"></p>
+        <label for="routerUpnpCheckInterval">
+          Router UPnP check interval (seconds)
+        </label>
 
-      </form>
+        <input
+          id="routerUpnpCheckInterval"
+          type="number"
+          min="5"
+          max="86400"
+          step="1"
+          required
+        >
 
-    </section>
+        <p class="settings-help">
+          The first check starts immediately. Each next check starts this many seconds after the previous check finishes, so checks do not overlap. Minimum 5 seconds.
+        </p>
+
+        <label class="switch-row">
+          <span>
+            <strong>Enable automatic UPnP recovery</strong>
+            <small>Automatically enable UPnP in the router settings when it is found off.</small>
+          </span>
+          <input id="routerUpnpMonitorEnabled" type="checkbox">
+        </label>
+
+        <p id="routerUpnpCredentialsHelp" class="settings-help"></p>
+
+        <button id="viewRouterUpnpButton" class="secondary hidden" type="button">
+          View live router monitor
+        </button>
+
+      </section>
+
+      <p class="settings-help">
+        Port rules are applied immediately, then each renewal is independently randomized between 6 and 24 hours after the previous attempt. Randomized timings reduce synchronization but do not guarantee a five-minute gap between renewals.
+      </p>
+
+      <div class="modal-actions settings-form-actions">
+
+        <button type="submit" class="primary">
+          Save settings
+        </button>
+
+      </div>
+
+      <p id="settingsError" class="error"></p>
+
+    </form>
 
   </main>
 

@@ -1,8 +1,16 @@
 let ports = [];
+let logs = [];
 let gatewayTimer;
 let portsRefreshTimer;
+let routerUpnpRefreshTimer;
+let routerUpnpScreenRefreshTimer;
 let gatewayCheckInFlight = false;
 let portsRefreshInFlight = false;
+let routerUpnpRefreshInFlight = false;
+let routerUpnpScreenRefreshInFlight = false;
+let routerUpnpLiveViewAvailable = false;
+let routerUpnpScreenError = "";
+let routerUpnpScreenDisplayedAt = "";
 let testingSelected = false;
 
 const $ = id => document.getElementById(id);
@@ -11,6 +19,8 @@ const loginPage = $("loginPage");
 const dashboard = $("dashboard");
 const portsPage = $("portsPage");
 const settingsPage = $("settingsPage");
+const logsPage = $("logsPage");
+const routerUpnpPage = $("routerUpnpPage");
 const modal = $("modal");
 const testModal = $("testModal");
 const table = $("portsTable");
@@ -50,18 +60,26 @@ async function init() {
 }
 
 function showLogin() {
+  setRouterMonitorScrollLock(false);
   loginPage.classList.remove("hidden");
   dashboard.classList.add("hidden");
   settingsPage.classList.add("hidden");
+  logsPage.classList.add("hidden");
+  routerUpnpPage.classList.add("hidden");
   clearInterval(gatewayTimer);
   clearInterval(portsRefreshTimer);
+  clearInterval(routerUpnpRefreshTimer);
+  clearInterval(routerUpnpScreenRefreshTimer);
+  clearRouterUpnpScreen();
 }
 
 async function showDashboard() {
   loginPage.classList.add("hidden");
   dashboard.classList.remove("hidden");
   await loadPorts();
-  showPortsPage();
+  await refreshLogs();
+  await refreshRouterUpnp();
+  await showPageFromHash();
   updateGatewayStatus();
   clearInterval(gatewayTimer);
   gatewayTimer = setInterval(updateGatewayStatus, 10000);
@@ -79,11 +97,256 @@ async function refreshPortStatuses() {
       const port = ports.find(entry => entry.id === badge.dataset.healthId);
       if (port) updatePortHealthBadge(port, badge);
     }
+    await refreshLogs();
   } catch (error) {
     console.error(`Could not refresh port statuses: ${error.message}`);
   } finally {
     portsRefreshInFlight = false;
   }
+}
+
+async function refreshLogs() {
+  try {
+    logs = await api("/api/logs");
+    $("logsError").textContent = "";
+    renderLogs();
+  } catch (error) {
+    $("logsError").textContent = error.message;
+    console.error(`Could not load app logs: ${error.message}`);
+  }
+}
+
+async function refreshRouterUpnp() {
+  if (routerUpnpRefreshInFlight) return;
+  routerUpnpRefreshInFlight = true;
+
+  try {
+    const monitor = await api("/api/router-upnp");
+    $("routerUpnpError").textContent = "";
+    renderRouterUpnp(monitor);
+  } catch (error) {
+    $("routerUpnpError").textContent = error.message;
+    console.error(`Could not load router UPnP monitor status: ${error.message}`);
+  } finally {
+    routerUpnpRefreshInFlight = false;
+  }
+}
+
+async function refreshRouterUpnpScreen(force = false) {
+  if (routerUpnpScreenRefreshInFlight || (!routerUpnpLiveViewAvailable && !force) ||
+      routerUpnpPage.classList.contains("hidden")) return;
+  routerUpnpScreenRefreshInFlight = true;
+
+  try {
+    const response = await fetch(
+      `/api/router-upnp/screenshot?after=${encodeURIComponent(routerUpnpScreenDisplayedAt)}`,
+      {
+        cache: "no-store"
+      }
+    );
+    if (response.status === 204) return;
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || "Could not capture the router browser screen.");
+    }
+
+    const objectUrl = URL.createObjectURL(await response.blob());
+    const image = $("routerUpnpScreen");
+    const previousUrl = image.dataset.objectUrl;
+    image.src = objectUrl;
+    image.dataset.objectUrl = objectUrl;
+    image.classList.remove("hidden");
+    routerUpnpScreenDisplayedAt = response.headers.get("X-Screenshot-Updated-At") || "";
+    if (previousUrl) URL.revokeObjectURL(previousUrl);
+
+    routerUpnpScreenError = "";
+    $("routerUpnpScreenHint").textContent = "Live browser screen; refreshes several times per second.";
+  } catch (error) {
+    routerUpnpScreenError = error.message;
+    $("routerUpnpScreenHint").textContent = `Live screen capture failed: ${error.message}`;
+  } finally {
+    routerUpnpScreenRefreshInFlight = false;
+  }
+}
+
+function clearRouterUpnpScreen() {
+  const image = $("routerUpnpScreen");
+  if (image.dataset.objectUrl) URL.revokeObjectURL(image.dataset.objectUrl);
+  delete image.dataset.objectUrl;
+  image.removeAttribute("src");
+  image.classList.add("hidden");
+  routerUpnpLiveViewAvailable = false;
+  routerUpnpScreenError = "";
+  routerUpnpScreenDisplayedAt = "";
+}
+
+function renderRouterUpnp(monitor) {
+  const state = monitor.state;
+  setRouterUpnpNavigationVisible(monitor.enabled);
+  const badge = $("routerUpnpStatus");
+  const statusLabels = {
+    checking: "Checking",
+    enabled: "UPnP enabled",
+    error: "Error",
+    disabled: "Disabled",
+    idle: "Waiting"
+  };
+  const statusClass = ["checking", "enabled", "error", "disabled", "idle"].includes(state.status)
+    ? state.status
+    : "error";
+
+  badge.className = `router-status-badge ${statusClass}`;
+  badge.textContent = statusLabels[state.status] || "Unknown";
+  $("routerUpnpStep").textContent = state.step;
+  $("routerUpnpMessage").textContent = state.message;
+  $("routerUpnpLastCheck").textContent = state.lastCheckAt
+    ? new Date(state.lastCheckAt).toLocaleString()
+    : "Never";
+  $("routerUpnpNextCheck").textContent = state.nextCheckAt
+    ? new Date(state.nextCheckAt).toLocaleString()
+    : "Not scheduled";
+  $("routerUpnpCheckButton").disabled = !monitor.enabled || monitor.checking;
+  $("routerUpnpSettingsButton").classList.toggle("hidden", monitor.enabled);
+  routerUpnpLiveViewAvailable = monitor.liveViewAvailable;
+
+  const screenImage = $("routerUpnpScreen");
+  const screenHint = $("routerUpnpScreenHint");
+  if (!monitor.hasScreenshot) {
+    if (screenImage.dataset.objectUrl) URL.revokeObjectURL(screenImage.dataset.objectUrl);
+    delete screenImage.dataset.objectUrl;
+    screenImage.removeAttribute("src");
+    screenImage.classList.add("hidden");
+  }
+  if (routerUpnpScreenError) {
+    screenHint.textContent = `Live screen capture failed: ${routerUpnpScreenError}`;
+  } else if (monitor.screenshotError) {
+    screenHint.textContent = `Live screen capture failed: ${monitor.screenshotError}`;
+  } else if (monitor.liveViewAvailable) {
+    screenHint.textContent = monitor.hasScreenshot
+      ? "Live browser screen; refreshes several times per second."
+      : "Browser started; waiting for the first screen capture.";
+  } else if (monitor.hasScreenshot) {
+    screenHint.textContent = "The check has ended; showing its last captured screen.";
+  } else if (state.status === "error") {
+    screenHint.textContent = "No screen was captured. See the current status for the browser error.";
+  } else if (monitor.checking) {
+    screenHint.textContent = "The browser is launching; the screen will appear when the router page opens.";
+  } else if (monitor.enabled) {
+    screenHint.textContent = "The monitor is enabled and waiting for its next check.";
+  } else {
+    screenHint.textContent = "Monitoring is off. Enable automatic UPnP recovery in Settings to start a check.";
+  }
+  if (!monitor.liveViewAvailable && monitor.hasScreenshot &&
+      monitor.screenshotUpdatedAt !== routerUpnpScreenDisplayedAt) {
+    refreshRouterUpnpScreen(true);
+  }
+
+  const events = $("routerUpnpEvents");
+
+  if (!monitor.events.length) {
+    const emptyState = document.createElement("p");
+    emptyState.className = "router-monitor-empty";
+    emptyState.textContent = "No monitor activity yet.";
+    if (!events.querySelector(".router-monitor-empty")) {
+      events.replaceChildren(emptyState);
+    }
+    return;
+  }
+
+  const emptyState = events.querySelector(".router-monitor-empty");
+  if (emptyState) emptyState.remove();
+
+  const existingEvents = new Map(
+    [...events.querySelectorAll(".router-monitor-event")]
+      .map(item => [item.dataset.activityId, item])
+  );
+
+  let index = 0;
+  for (const entry of monitor.events) {
+    const activityId = `${entry.timestamp}|${entry.status}|${entry.step}|${entry.message}`;
+    let item = existingEvents.get(activityId);
+
+    if (item) {
+      existingEvents.delete(activityId);
+    } else {
+      item = document.createElement("article");
+      item.className = `router-monitor-event ${entry.status} activity-enter`;
+      item.dataset.activityId = activityId;
+
+      const heading = document.createElement("div");
+      heading.className = "router-monitor-event-heading";
+
+      const step = document.createElement("strong");
+      step.textContent = entry.step;
+
+      const time = document.createElement("time");
+      time.dateTime = entry.timestamp;
+      time.textContent = new Date(entry.timestamp).toLocaleString();
+
+      const message = document.createElement("p");
+      message.textContent = entry.message;
+
+      heading.append(step, time);
+      item.append(heading, message);
+    }
+
+    if (events.children[index] !== item) {
+      events.insertBefore(item, events.children[index] || null);
+    }
+    index += 1;
+  }
+
+  for (const item of existingEvents.values()) item.remove();
+}
+
+function setRouterUpnpNavigationVisible(visible) {
+  $("routerUpnpNav").classList.toggle("hidden", !visible);
+}
+
+function renderLogs() {
+  const nav = $("logsNav");
+  nav.classList.remove("hidden");
+  $("logCount").textContent = logs.length > 99 ? "99+" : String(logs.length);
+
+  const list = $("logsList");
+  list.replaceChildren();
+
+  if (!logs.length) {
+    const emptyState = document.createElement("p");
+    emptyState.className = "logs-empty";
+    emptyState.textContent = "No warnings or errors have been recorded.";
+    list.appendChild(emptyState);
+  }
+
+  for (const entry of logs) {
+    const item = document.createElement("article");
+    item.className = `log-entry ${entry.level === "warning" ? "warning" : "error"}`;
+
+    const header = document.createElement("div");
+    header.className = "log-entry-header";
+
+    const level = document.createElement("span");
+    level.className = "log-level";
+    level.textContent = entry.level.toUpperCase();
+
+    const category = document.createElement("span");
+    category.className = "log-category";
+    category.textContent = entry.category;
+
+    const time = document.createElement("time");
+    time.className = "log-time";
+    time.dateTime = entry.timestamp;
+    time.textContent = new Date(entry.timestamp).toLocaleString();
+
+    const message = document.createElement("p");
+    message.className = "log-message";
+    message.textContent = entry.message;
+
+    header.append(level, category, time);
+    item.append(header, message);
+    list.appendChild(item);
+  }
+
 }
 
 function getPortHealthDisplay(port) {
@@ -140,10 +403,12 @@ async function updateGatewayStatus() {
     status.textContent = gateway.connected ? "Gateway connected" : "Gateway unavailable";
     status.title = gateway.message;
     dot.className = `status-dot ${gateway.connected ? "connected" : "disconnected"}`;
+    if (!gateway.connected) await refreshLogs();
   } catch (error) {
     $("gatewayStatus").textContent = "Gateway check failed";
     $("gatewayStatus").title = error.message;
     $("gatewayStatusDot").className = "status-dot disconnected";
+    await refreshLogs();
   } finally {
     gatewayCheckInFlight = false;
   }
@@ -291,9 +556,47 @@ $("settingsNav").addEventListener("click", event => {
   event.preventDefault();
   openSettings();
 });
+$("routerUpnpNav").addEventListener("click", event => {
+  event.preventDefault();
+  showRouterUpnpPage();
+});
+$("logsNav").addEventListener("click", async event => {
+  event.preventDefault();
+  await refreshLogs();
+  showLogsPage();
+});
 $("portsNav").addEventListener("click", event => {
   event.preventDefault();
   showPortsPage();
+});
+$("refreshLogsButton").addEventListener("click", refreshLogs);
+$("routerUpnpCheckButton").addEventListener("click", async () => {
+  $("routerUpnpError").textContent = "";
+  $("routerUpnpCheckButton").disabled = true;
+
+  try {
+    await api("/api/router-upnp/check", { method: "POST" });
+    await refreshRouterUpnp();
+  } catch (error) {
+    $("routerUpnpError").textContent = error.message;
+    await refreshRouterUpnp();
+  }
+});
+$("routerUpnpBackButton").addEventListener("click", showPortsPage);
+$("routerUpnpSettingsButton").addEventListener("click", openSettings);
+$("viewRouterUpnpButton").addEventListener("click", showRouterUpnpPage);
+$("clearLogsButton").addEventListener("click", async () => {
+  if (!confirm("Clear all saved app logs?")) return;
+
+  $("logsError").textContent = "";
+  try {
+    await api("/api/logs", { method: "DELETE" });
+    logs = [];
+    renderLogs();
+  } catch (error) {
+    $("logsError").textContent = error.message;
+    console.error(`Could not clear app logs: ${error.message}`);
+  }
 });
 $("backToPorts").addEventListener("click", showPortsPage);
 
@@ -329,6 +632,7 @@ $("portForm").addEventListener("submit", async event => {
     await loadPorts();
   } catch (error) {
     $("formError").textContent = error.message;
+    await refreshLogs();
   }
 });
 
@@ -376,12 +680,14 @@ async function testPort(id, button) {
     status.classList.add(result.reachable ? "success" : "failure");
     status.title = result.message;
     showTestResult(port, result.reachable, result.message);
+    if (!result.reachable) await refreshLogs();
     return result.reachable;
   } catch (error) {
     status.textContent = "Failed";
     status.classList.add("failure");
     status.title = error.message;
     showTestResult(port, false, error.message, true);
+    await refreshLogs();
     return false;
   } finally {
     button.disabled = false;
@@ -437,22 +743,113 @@ function closeTestModal() {
 }
 
 function showPortsPage() {
+  setRouterMonitorScrollLock(false);
+  clearInterval(routerUpnpRefreshTimer);
+  clearInterval(routerUpnpScreenRefreshTimer);
   portsPage.classList.remove("hidden");
   settingsPage.classList.add("hidden");
+  logsPage.classList.add("hidden");
+  routerUpnpPage.classList.add("hidden");
   $("portsNav").classList.add("active");
   $("settingsNav").classList.remove("active");
+  $("routerUpnpNav").classList.remove("active");
+  $("logsNav").classList.remove("active");
+  setPageHash("ports");
+}
+
+function showLogsPage() {
+  setRouterMonitorScrollLock(false);
+  clearInterval(routerUpnpRefreshTimer);
+  clearInterval(routerUpnpScreenRefreshTimer);
+  portsPage.classList.add("hidden");
+  settingsPage.classList.add("hidden");
+  logsPage.classList.remove("hidden");
+  routerUpnpPage.classList.add("hidden");
+  $("portsNav").classList.remove("active");
+  $("settingsNav").classList.remove("active");
+  $("routerUpnpNav").classList.remove("active");
+  $("logsNav").classList.add("active");
+  setPageHash("logs");
+}
+
+function showSettingsPage() {
+  setRouterMonitorScrollLock(false);
+  clearInterval(routerUpnpRefreshTimer);
+  clearInterval(routerUpnpScreenRefreshTimer);
+  portsPage.classList.add("hidden");
+  logsPage.classList.add("hidden");
+  routerUpnpPage.classList.add("hidden");
+  settingsPage.classList.remove("hidden");
+  $("portsNav").classList.remove("active");
+  $("settingsNav").classList.add("active");
+  $("routerUpnpNav").classList.remove("active");
+  $("logsNav").classList.remove("active");
+  setPageHash("settings");
+}
+
+function showRouterUpnpPage() {
+  setRouterMonitorScrollLock(true);
+  portsPage.classList.add("hidden");
+  settingsPage.classList.add("hidden");
+  logsPage.classList.add("hidden");
+  routerUpnpPage.classList.remove("hidden");
+  $("portsNav").classList.remove("active");
+  $("settingsNav").classList.remove("active");
+  $("routerUpnpNav").classList.add("active");
+  $("logsNav").classList.remove("active");
+  setPageHash("router-monitor");
+  clearInterval(routerUpnpRefreshTimer);
+  clearInterval(routerUpnpScreenRefreshTimer);
+  refreshRouterUpnp();
+  refreshRouterUpnpScreen();
+  routerUpnpRefreshTimer = setInterval(refreshRouterUpnp, 500);
+  routerUpnpScreenRefreshTimer = setInterval(refreshRouterUpnpScreen, 300);
+}
+
+function setRouterMonitorScrollLock(locked) {
+  document.documentElement.classList.toggle("router-monitor-open", locked);
+  document.body.classList.toggle("router-monitor-open", locked);
+}
+
+function setPageHash(page) {
+  const hash = `#${page}`;
+  window.scrollTo(0, 0);
+  if (window.location.hash === hash) return;
+  window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
+}
+
+async function showPageFromHash() {
+  switch (window.location.hash) {
+    case "#settings":
+      await openSettings();
+      break;
+    case "#logs":
+      showLogsPage();
+      break;
+    case "#router-monitor":
+      showRouterUpnpPage();
+      break;
+    default:
+      showPortsPage();
+  }
 }
 
 async function openSettings() {
   $("settingsError").textContent = "";
-  portsPage.classList.add("hidden");
-  settingsPage.classList.remove("hidden");
-  $("portsNav").classList.remove("active");
-  $("settingsNav").classList.add("active");
+  showSettingsPage();
 
   try {
     const settings = await api("/api/settings");
     $("healthCheckInterval").value = settings.healthCheckIntervalSeconds;
+    $("routerUpnpCheckInterval").value = settings.routerUpnpCheckIntervalSeconds;
+    $("routerUpnpMonitorEnabled").checked = settings.routerUpnpMonitorEnabled;
+    setRouterUpnpNavigationVisible(settings.routerUpnpMonitorEnabled);
+    $("routerUpnpCredentialsHelp").textContent = settings.routerUpnpCredentialsConfigured
+      ? "Router credentials are configured privately in the app environment."
+      : settings.routerUpnpMonitorEnabled
+        ? "Router credentials are missing. Add both admin credentials in the app environment or turn monitoring off."
+        : "Add ROUTER_ADMIN_USERNAME and ROUTER_ADMIN_PASSWORD to the app environment before saving this switch as enabled.";
+    $("viewRouterUpnpButton").classList.toggle("hidden", !settings.routerUpnpMonitorEnabled);
   } catch (error) {
     $("settingsError").textContent = error.message;
   }
@@ -463,14 +860,17 @@ $("settingsForm").addEventListener("submit", async event => {
   $("settingsError").textContent = "";
 
   try {
-    await api("/api/settings", {
+    const settings = await api("/api/settings", {
       method: "PUT",
       body: JSON.stringify({
-        healthCheckIntervalSeconds: Number($("healthCheckInterval").value)
+        healthCheckIntervalSeconds: Number($("healthCheckInterval").value),
+        routerUpnpCheckIntervalSeconds: Number($("routerUpnpCheckInterval").value),
+        routerUpnpMonitorEnabled: $("routerUpnpMonitorEnabled").checked
       })
     });
 
-    closeSettings();
+    setRouterUpnpNavigationVisible(settings.routerUpnpMonitorEnabled);
+    await refreshRouterUpnp();
   } catch (error) {
     $("settingsError").textContent = error.message;
   }
@@ -495,6 +895,7 @@ deleteSelected.addEventListener("click", async () => {
     await loadPorts();
   } catch (error) {
     alert(error.message);
+    await refreshLogs();
   }
 });
 

@@ -1,33 +1,35 @@
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-  --sidebar: #111827;
-  --sidebar-dark: #0d1420;
-  --sidebar-border: #273449;
+  --sidebar: #11171b;
+  --sidebar-dark: #0d1215;
+  --sidebar-border: #293238;
 
-  --bg: #0b1220;
-  --card: #131d2d;
-  --border: #26344a;
+  --bg: #0e1215;
+  --card: #151b1f;
+  --border: #2b343a;
 
-  --text: #e5edf7;
-  --muted: #91a0b5;
-  --muted-dark: #aab7c8;
+  --text: #dce4e8;
+  --muted: #8f9ba2;
+  --muted-dark: #aeb8bd;
 
-  --primary: #2f80ed;
-  --primary-hover: #2674dc;
-  --primary-soft: #172f53;
+  --primary: #4cbd91;
+  --primary-hover: #5ac99e;
+  --primary-soft: #172b24;
 
-  --success: #27ae60;
-  --success-soft: #123a2a;
+  --success: #55c58e;
+  --success-soft: #172b22;
 
-  --danger: #e05252;
-  --danger-soft: #411f2a;
+  --danger: #e47b80;
+  --danger-soft: #332124;
 
   font-synthesis: none;
 }
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #344148 #11171b;
 }
 
 html,
@@ -53,6 +55,25 @@ button {
 
 .hidden {
   display: none !important;
+}
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #11171b;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #344148;
+  border: 2px solid #11171b;
+  border-radius: 8px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
 }
 
 /* =========================================================
@@ -778,6 +799,12 @@ input[type="checkbox"] {
   line-height: 1.5;
 }
 
+.settings-form {
+  display: grid;
+  gap: 14px;
+  width: min(560px, 100%);
+}
+
 .settings-panel {
   width: min(560px, 100%);
 
@@ -787,6 +814,255 @@ input[type="checkbox"] {
 
   border: 1px solid var(--border);
   border-radius: 5px;
+}
+
+.settings-panel h3 {
+  margin: 0 0 16px;
+  color: #edf3fa;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.settings-panel .settings-help {
+  margin: 0 0 16px;
+}
+
+.settings-form > .settings-help {
+  margin: 0;
+}
+
+#routerUpnpCredentialsHelp {
+  margin: -8px 0 12px !important;
+}
+
+#viewRouterUpnpButton {
+  margin: 0;
+}
+
+.settings-form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.router-monitor-panel {
+  width: min(900px, 100%);
+  padding: 20px;
+  margin-bottom: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.router-monitor-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.router-monitor-heading h3 {
+  margin: 0;
+  color: #edf3fa;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.router-monitor-heading p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.router-status-badge {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 12px;
+  color: #e0b65c;
+  background: #3a321d;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.router-status-badge.enabled {
+  color: #63d391;
+  background: var(--success-soft);
+}
+
+.router-status-badge.error {
+  color: #ef8f98;
+  background: var(--danger-soft);
+}
+
+.router-status-badge.disabled {
+  color: #aab7c8;
+  background: #273448;
+}
+
+.router-monitor-message {
+  margin: 18px 0;
+  color: #c4d0df;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.router-screen-frame {
+  display: grid;
+  min-height: 280px;
+  place-items: center;
+  overflow: hidden;
+  background: #070b12;
+  border: 1px solid #2d3d55;
+  border-radius: 4px;
+}
+
+#routerUpnpScreen {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 75vh;
+  object-fit: contain;
+}
+
+.router-monitor-times {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.router-monitor-times div {
+  padding: 12px;
+  background: #172236;
+  border: 1px solid #2d3d55;
+  border-radius: 4px;
+}
+
+.router-monitor-times dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.router-monitor-times dd {
+  margin: 5px 0 0;
+  color: #d3deeb;
+  font-size: 12px;
+}
+
+.router-monitor-events {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.router-monitor-event {
+  padding: 12px 14px;
+  border: 1px solid #2d3d55;
+  border-left: 3px solid #e0a83a;
+  border-radius: 4px;
+  background: #172236;
+}
+
+.router-monitor-event.enabled {
+  border-left-color: var(--success);
+}
+
+.router-monitor-event.error {
+  border-left-color: var(--danger);
+}
+
+.router-monitor-event.disabled {
+  border-left-color: #7d8ca1;
+}
+
+.router-monitor-event-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.router-monitor-event-heading strong {
+  color: #d3deeb;
+  font-size: 12px;
+}
+
+.router-monitor-event-heading time {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.router-monitor-event p,
+.router-monitor-empty {
+  margin: 7px 0 0;
+  color: #aab7c8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.logs-list {
+  display: grid;
+  gap: 10px;
+}
+
+.logs-empty {
+  margin: 0;
+  padding: 18px;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.log-entry {
+  padding: 14px 16px;
+
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: 4px;
+}
+
+.log-entry.warning {
+  border-left-color: #e0a83a;
+}
+
+.log-entry-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.log-level {
+  color: #ef8f98;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.log-entry.warning .log-level {
+  color: #e0b65c;
+}
+
+.log-category {
+  color: #d3deeb;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.log-time {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.log-message {
+  margin: 0;
+  color: #b7c4d4;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .modal-header {
@@ -887,9 +1163,11 @@ input[type="checkbox"] {
 }
 
 .switch-row input {
-  width: 38px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 
+  flex: 0 0 auto;
+  padding: 0;
   margin: 0;
 
   accent-color: var(--primary);
@@ -949,6 +1227,16 @@ input[type="checkbox"] {
 
   .topbar-actions button {
     flex: 1;
+  }
+
+  .router-monitor-times {
+    grid-template-columns: 1fr;
+  }
+
+  .router-monitor-event-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .toolbar {
@@ -1031,6 +1319,19 @@ input[type="checkbox"] {
   background: #2d3b4f;
 }
 
+.log-count {
+  min-width: 20px;
+  margin-left: auto;
+  padding: 2px 6px;
+
+  color: #f0b4ba;
+  background: #411f2a;
+  border-radius: 10px;
+
+  font-size: 10px;
+  text-align: center;
+}
+
 .sidebar-link-icon {
   width: 18px;
 
@@ -1042,5 +1343,390 @@ input[type="checkbox"] {
 
 .sidebar-link.active .sidebar-link-icon {
   color: #4e96f5;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.login-page {
+  background: var(--bg);
+}
+
+.login-card,
+.card,
+.settings-panel,
+.router-monitor-panel,
+.modal-card,
+.log-entry {
+  background: var(--card);
+  border-color: var(--border);
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.login-card {
+  border-radius: 8px;
+}
+
+.sidebar {
+  background: var(--sidebar);
+  border-right-color: var(--sidebar-border);
+}
+
+.sidebar-brand {
+  border-bottom-color: var(--sidebar-border);
+}
+
+.sidebar-link.active {
+  color: #e5f4ed;
+  background: #1b2622;
+  box-shadow: inset 2px 0 var(--primary);
+}
+
+.sidebar-link.active .sidebar-link-icon {
+  color: var(--primary);
+}
+
+.sidebar-link:hover {
+  background: #1a2226;
+}
+
+.status,
+.switch-row,
+.test-modal-result,
+.router-monitor-times div {
+  background: #11171b;
+  border-color: var(--border);
+  border-radius: 5px;
+}
+
+.primary {
+  color: #08130e;
+  background: var(--primary);
+  border-radius: 5px;
+}
+
+.primary:hover {
+  background: var(--primary-hover);
+  box-shadow: none;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.primary:disabled {
+  color: #a0aaa5;
+  background: #29332e;
+}
+
+.secondary,
+.danger-outline,
+.logout {
+  background: #171e22;
+  border-color: var(--border);
+  border-radius: 5px;
+}
+
+.secondary:hover,
+.logout:hover {
+  background: #20292e;
+}
+
+.danger-outline {
+  color: var(--danger);
+}
+
+input,
+select,
+.search input {
+  color: var(--text);
+  background: #0f1518;
+  border-color: #303b41;
+  border-radius: 5px;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(76, 189, 145, 0.13);
+}
+
+.main {
+  max-width: none;
+  padding: 28px 32px;
+}
+
+.topbar h2 {
+  color: #edf2f4;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+th {
+  color: #9eabb1;
+  background: #171f23;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.03em;
+}
+
+th,
+td {
+  border-bottom-color: #252e33;
+}
+
+td {
+  background: var(--card);
+}
+
+tbody tr:hover td {
+  background: #1a2226;
+}
+
+.port-name,
+.router-monitor-heading h3,
+.settings-panel h3,
+.modal-header h3 {
+  color: #e1e9ec;
+}
+
+.router-status-badge {
+  padding: 4px 8px;
+  border: 1px solid #54472a;
+  border-radius: 4px;
+  background: #282319;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.router-status-badge.enabled {
+  border-color: #2e5b43;
+}
+
+.router-status-badge.error {
+  border-color: #684044;
+}
+
+.router-status-badge.disabled {
+  border-color: #39434a;
+}
+
+#routerUpnpPage {
+  display: grid;
+  grid-template-columns: minmax(290px, 0.85fr) minmax(0, 1.4fr);
+  grid-template-areas:
+    "header header"
+    "error error"
+    "activity-column screen";
+  align-content: start;
+  gap: 8px 18px;
+  padding-top: 12px;
+  padding-bottom: 16px;
+}
+
+#routerUpnpPage > .topbar {
+  grid-area: header;
+  margin-bottom: 0;
+}
+
+#routerUpnpPage > #routerUpnpError {
+  grid-area: error;
+  min-height: 0;
+  margin: 0;
+}
+
+#routerUpnpScreenPanel {
+  grid-area: screen;
+}
+
+#routerUpnpActivityColumn {
+  display: flex;
+  grid-area: activity-column;
+  min-width: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#routerUpnpPage > .router-monitor-panel {
+  width: 100%;
+  margin: 0;
+  padding: 17px;
+}
+
+#routerUpnpStatusPanel {
+  flex: 0 0 auto;
+  padding: 12px;
+}
+
+#routerUpnpStatusPanel .router-monitor-message {
+  margin: 10px 0;
+}
+
+#routerUpnpStatusPanel .router-monitor-times {
+  gap: 8px;
+}
+
+#routerUpnpStatusPanel .router-monitor-times div {
+  padding: 8px;
+}
+
+#routerUpnpActivityPanel {
+  display: flex;
+  min-height: 280px;
+  flex: 1 1 auto;
+  flex-direction: column;
+  padding: 14px 14px 8px;
+}
+
+.router-screen-frame {
+  min-height: 300px;
+  aspect-ratio: 10 / 7;
+  background: #090d0f;
+  border-color: var(--border);
+  border-radius: 5px;
+}
+
+#routerUpnpScreen {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+}
+
+.router-monitor-events {
+  align-content: start;
+  grid-auto-rows: max-content;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  gap: 0;
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.router-monitor-event {
+  padding: 11px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-left: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.router-monitor-event.activity-enter {
+  animation: router-activity-pop-in 220ms ease-out both;
+}
+
+@keyframes router-activity-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .router-monitor-event.activity-enter {
+    animation: none;
+  }
+}
+
+.router-monitor-event-heading strong,
+.router-monitor-event-heading time,
+.log-time,
+.log-level,
+.router-monitor-times dt {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.router-monitor-event-heading strong {
+  font-size: 11px;
+}
+
+.router-monitor-event-heading time,
+.log-time {
+  font-size: 10px;
+}
+
+.router-monitor-event.error .router-monitor-event-heading strong {
+  color: var(--danger);
+}
+
+.router-monitor-event.enabled .router-monitor-event-heading strong {
+  color: var(--success);
+}
+
+.log-entry {
+  border-left-color: var(--danger);
+}
+
+.log-entry.warning {
+  border-left-color: #d4a84e;
+}
+
+@media (max-width: 900px) {
+  #routerUpnpPage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "header"
+      "error"
+      "activity-column"
+      "screen";
+  }
+
+  #routerUpnpPage > .router-monitor-panel,
+  #routerUpnpActivityColumn {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  .main {
+    padding: 24px 17px;
+  }
+}
+
+@media (min-width: 901px) {
+  html.router-monitor-open,
+  body.router-monitor-open {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  #routerUpnpPage {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  #routerUpnpActivityColumn,
+  #routerUpnpActivityPanel,
+  #routerUpnpScreenPanel,
+  .router-screen-frame {
+    min-height: 0;
+  }
+
+  #routerUpnpScreenPanel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #routerUpnpScreenPanel > .router-monitor-heading,
+  #routerUpnpScreenHint {
+    flex: 0 0 auto;
+  }
+
+  .router-screen-frame {
+    flex: 1 1 auto;
+  }
 }
 

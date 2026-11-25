@@ -20,6 +20,16 @@ The port mappings and health-check settings are stored in `/data`. Back up that 
 
 Enabled mappings are applied immediately when created and at app startup. Each renewal is then independently randomized between 6 and 24 hours after the previous attempt. Automatic health checks run every five minutes by default; change the interval in **Settings**. The port status shows the latest check time and result on hover, and failed checks are written to the container logs. TCP checks test reachability; UDP checks can only confirm that the gateway mapping exists. Randomized timings reduce synchronization but do not guarantee a five-minute gap between renewals.
 
+Warnings and errors from health checks, router UPnP recovery, and port-management actions are also saved in `/data/logs.json` and shown in the **Logs** tab. The tab stays hidden when there are no entries; the log keeps the latest 500 entries. **Clear logs** clears SimplePort's saved log only, not the TrueNAS container logs.
+
+## Router UPnP auto-recovery
+
+Configure router UPnP auto-recovery from **Settings**. The switch is enabled by default when both `ROUTER_ADMIN_USERNAME` and `ROUTER_ADMIN_PASSWORD` are configured, including when upgrading an existing deployment. If the switch is off, SimplePort does not launch the router browser. Set credentials as private environment secrets (Compose users can put them in the ignored `.env`; do not commit real credentials in YAML or source control). The TrueNAS install YAML includes empty placeholders for these variables.
+
+When enabled, the headless browser check runs immediately, then waits the configured **Router UPnP check interval** (300 seconds by default, minimum 5 seconds) after each check finishes before starting the next one. This avoids overlapping checks. On Windows, SimplePort auto-detects installed Chrome or Edge; on Linux, it checks standard Chromium/Chrome paths. If no browser is found or the auto-detection selects the wrong one, set `PUPPETEER_EXECUTABLE_PATH` to the browser executable path. The Docker image sets this to its bundled Chromium.
+
+The **Router Monitor** view is always available in the sidebar; it shows whether monitoring is off or on, the current step, last and next check times, live activity, and a live browser screen that refreshes once per second while open. Use **Check now** to start a check on demand when monitoring is enabled. The monitor visits `http://10.0.0.1`, opens **Advanced > Device Discovery**, and inspects the UPnP control. It does nothing when UPnP is already on. If it can positively identify that UPnP is off, it turns it on, saves, and reloads the setting to verify it. Disabling the feature in Settings cancels scheduled checks and stops any active browser session. If login or page controls cannot be identified, it makes no setting change and records an error in the Logs tab. Router admin credentials are not written to logs. Re-enabling UPnP may restore public access through any existing UPnP mappings.
+
 ## HTTPS or remote access
 
 For LAN-only use, keep `SESSION_COOKIE_SECURE=false` and access SimplePort over HTTP. If exposing it through an HTTPS reverse proxy or Tailscale, set `SESSION_COOKIE_SECURE=true` and restrict access with the proxy or VPN. Do not expose the admin UI directly to the public internet without HTTPS and an access control layer.
@@ -31,7 +41,7 @@ docker compose pull
 docker compose up -d --build
 ```
 
-The image installs `miniupnpc` automatically; no package installation is required on the TrueNAS host.
+The image installs `miniupnpc` and Chromium automatically; no package installation is required on the TrueNAS host.
 
 ## TrueNAS Install via YAML
 
