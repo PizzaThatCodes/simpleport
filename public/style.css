@@ -752,44 +752,6 @@ input[type="checkbox"] {
     0 20px 60px rgba(0, 0, 0, 0.42);
 }
 
-.test-modal-card {
-  width: min(500px, 100%);
-}
-
-.test-modal-result {
-  min-height: 72px;
-
-  display: flex;
-  align-items: center;
-
-  padding: 15px;
-
-  color: #c4d0df;
-  background: #172236;
-
-  border: 1px solid #2d3d55;
-  border-radius: 4px;
-
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.test-modal-result.loading {
-  color: #b9c6d6;
-}
-
-.test-modal-result.success {
-  color: #63d391;
-  background: #123a2a;
-  border-color: #246d48;
-}
-
-.test-modal-result.failure {
-  color: #ef8f98;
-  background: #411f2a;
-  border-color: #763646;
-}
-
 .settings-help {
   margin: -8px 0 20px;
 
@@ -1395,7 +1357,6 @@ body {
 
 .status,
 .switch-row,
-.test-modal-result,
 .router-monitor-times div {
   background: #11171b;
   border-color: var(--border);

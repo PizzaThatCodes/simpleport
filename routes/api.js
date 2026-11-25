@@ -164,6 +164,7 @@ function registerApiRoutes(app, dependencies) {
       return res.status(404).json({ error: "Port forward not found" });
     }
     if (port.protocol === "UDP") {
+      recordLog("warning", "Port test", `Port ${port.externalPort} (${port.name}): UDP ports cannot be verified with a TCP connection test.`);
       return res.json({
         reachable: false,
         message: "UDP ports cannot be verified with a TCP connection test."

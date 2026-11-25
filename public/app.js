@@ -22,7 +22,6 @@ const settingsPage = $("settingsPage");
 const logsPage = $("logsPage");
 const routerUpnpPage = $("routerUpnpPage");
 const modal = $("modal");
-const testModal = $("testModal");
 const table = $("portsTable");
 const empty = $("empty");
 const search = $("search");
@@ -550,8 +549,6 @@ $("createBtn").addEventListener("click", openCreate);
 $("closeModal").addEventListener("click", closeModal);
 $("cancelModal").addEventListener("click", closeModal);
 $("modal").querySelector(".modal-backdrop").addEventListener("click", closeModal);
-$("testModalClose").addEventListener("click", closeTestModal);
-$("testModal").querySelector(".modal-backdrop").addEventListener("click", closeTestModal);
 $("settingsNav").addEventListener("click", event => {
   event.preventDefault();
   openSettings();
@@ -672,21 +669,18 @@ async function testPort(id, button) {
   button.textContent = "Testing...";
   status.textContent = "";
   status.className = "port-test-status";
-  openTestModal(port);
 
   try {
     const result = await api(`/api/ports/${id}/test`, { method: "POST" });
     status.textContent = result.reachable ? "Open" : "Closed";
     status.classList.add(result.reachable ? "success" : "failure");
     status.title = result.message;
-    showTestResult(port, result.reachable, result.message);
     if (!result.reachable) await refreshLogs();
     return result.reachable;
   } catch (error) {
     status.textContent = "Failed";
     status.classList.add("failure");
     status.title = error.message;
-    showTestResult(port, false, error.message, true);
     await refreshLogs();
     return false;
   } finally {
@@ -704,43 +698,16 @@ testSelected.addEventListener("click", async () => {
   testingSelected = true;
   updateSelectionState();
 
-  let reachableCount = 0;
-
   try {
     for (const id of ids) {
       const button = document.querySelector(`.test-btn[data-id="${id}"]`);
-      if (button && await testPort(id, button)) reachableCount += 1;
+      if (button) await testPort(id, button);
     }
-
-    const allReachable = reachableCount === ids.length;
-    $("testModalTitle").textContent = allReachable ? "All selected ports are open" : "Some selected ports are closed";
-    $("testModalResult").textContent = `${reachableCount} of ${ids.length} selected port forwards are reachable.`;
-    $("testModalResult").className = `test-modal-result ${allReachable ? "success" : "failure"}`;
   } finally {
     testingSelected = false;
     updateSelectionState();
   }
 });
-
-function openTestModal(port) {
-  $("testModalTitle").textContent = `Testing ${port.name}...`;
-  $("testModalResult").textContent = `Checking port rule ${port.externalPort} (${port.protocol})...`;
-  $("testModalResult").className = "test-modal-result loading";
-  testModal.classList.remove("hidden");
-}
-
-function showTestResult(port, reachable, message, failed = false) {
-  const result = $("testModalResult");
-  const outcome = failed ? "Test failed" : reachable ? "Open" : "Closed";
-
-  $("testModalTitle").textContent = `${port.name}: ${outcome}`;
-  result.textContent = `Port rule ${port.externalPort} (${port.protocol}) is ${failed ? "unavailable to test" : reachable ? "open" : "closed"}. ${message}`;
-  result.className = `test-modal-result ${failed || !reachable ? "failure" : "success"}`;
-}
-
-function closeTestModal() {
-  testModal.classList.add("hidden");
-}
 
 function showPortsPage() {
   setRouterMonitorScrollLock(false);
