@@ -10,6 +10,8 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY server.js ./
+COPY routes ./routes
+COPY services ./services
 COPY public ./public
 
 RUN mkdir -p /data
