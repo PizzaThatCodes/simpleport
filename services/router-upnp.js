@@ -42,6 +42,16 @@ function createRouterUpnpService({ loadSettings, recordLog, config }) {
     return null;
   }
 
+  async function disposeElements(...elements) {
+    await Promise.all(elements.filter(Boolean).map(async element => {
+      try {
+        await element.dispose();
+      } catch (error) {
+        recordLog("warning", "Router UPnP", `Could not release a router page element: ${error.message}`);
+      }
+    }));
+  }
+
   async function findRouterTextControl(page, labels, description) {
     const expected = labels.map(label => label.toLowerCase());
     const matches = [];
@@ -92,27 +102,33 @@ function createRouterUpnpService({ loadSettings, recordLog, config }) {
   async function loginToRouter(page) {
     const passwordInput = await findVisibleElement(page, 'input[type="password"]');
     if (!passwordInput) return;
+    let usernameInput;
+    let loginButton;
 
-    const usernameInput = await findVisibleElement(
-      page,
-      'input[autocomplete="username"], input[name*="user" i], input[id*="user" i], input[type="email"], input[type="text"]'
-    );
+    try {
+      usernameInput = await findVisibleElement(
+        page,
+        'input[autocomplete="username"], input[name*="user" i], input[id*="user" i], input[type="email"], input[type="text"]'
+      );
 
-    if (usernameInput) {
-      await usernameInput.click({ clickCount: 3 });
-      await usernameInput.type(ROUTER_ADMIN_USERNAME);
+      if (usernameInput) {
+        await usernameInput.click({ clickCount: 3 });
+        await usernameInput.type(ROUTER_ADMIN_USERNAME);
+      }
+
+      await passwordInput.click({ clickCount: 3 });
+      await passwordInput.type(ROUTER_ADMIN_PASSWORD);
+
+      loginButton = await findRouterTextControl(
+        page,
+        ["login", "log in", "sign in", "submit"],
+        "login button"
+      );
+      await loginButton.click();
+      await new Promise(resolve => setTimeout(resolve, 750));
+    } finally {
+      await disposeElements(usernameInput, passwordInput, loginButton);
     }
-
-    await passwordInput.click({ clickCount: 3 });
-    await passwordInput.type(ROUTER_ADMIN_PASSWORD);
-
-    const loginButton = await findRouterTextControl(
-      page,
-      ["login", "log in", "sign in", "submit"],
-      "login button"
-    );
-    await loginButton.click();
-    await new Promise(resolve => setTimeout(resolve, 750));
   }
 
   async function captureRouterUpnpScreenshot(page) {
@@ -132,21 +148,25 @@ function createRouterUpnpService({ loadSettings, recordLog, config }) {
   }
 
   async function clickRouterNavigationControl(page, control, generation) {
-    const href = await control.evaluate(node => node.getAttribute("href"));
-    let navigation;
-    if (href && href !== "#" && !href.toLowerCase().startsWith("javascript:")) {
-      navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15000 })
-        .then(() => true)
-        .catch(error => {
-          if (error.name === "TimeoutError") return false;
-          throw error;
-        });
-    }
+    try {
+      const href = await control.evaluate(node => node.getAttribute("href"));
+      let navigation;
+      if (href && href !== "#" && !href.toLowerCase().startsWith("javascript:")) {
+        navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 15000 })
+          .then(() => true)
+          .catch(error => {
+            if (error.name === "TimeoutError") return false;
+            throw error;
+          });
+      }
 
-    await control.click();
-    if (navigation) await navigation;
-    requireRouterUpnpMonitorEnabled(generation);
-    await captureRouterUpnpScreenshot(page);
+      await control.click();
+      if (navigation) await navigation;
+      requireRouterUpnpMonitorEnabled(generation);
+      await captureRouterUpnpScreenshot(page);
+    } finally {
+      await disposeElements(control);
+    }
   }
 
   async function openRouterUpnpSettings(page, generation) {
@@ -576,6 +596,7 @@ function createRouterUpnpService({ loadSettings, recordLog, config }) {
       const upnpToggle = await findUpnpToggle(page);
       const checkedAt = new Date().toISOString();
       if (upnpToggle.enabled) {
+        await disposeElements(upnpToggle.element);
         updateRouterUpnpState("enabled", "Check complete", "UPnP is already enabled on the router.", {
           lastCheckAt: checkedAt,
           nextCheckAt: null
@@ -583,10 +604,14 @@ function createRouterUpnpService({ loadSettings, recordLog, config }) {
         return;
       }
 
-      requireRouterUpnpMonitorEnabled(generation);
       updateRouterUpnpState("checking", "Enabling UPnP", "UPnP is off; enabling the router setting.");
-      await upnpToggle.element.click();
-      requireRouterUpnpMonitorEnabled(generation);
+      try {
+        requireRouterUpnpMonitorEnabled(generation);
+        await upnpToggle.element.click();
+        requireRouterUpnpMonitorEnabled(generation);
+      } finally {
+        await disposeElements(upnpToggle.element);
+      }
       if (!await waitForUpnpToggleState(page, true)) {
         throw new Error("The router UPnP control still reports disabled after clicking Enable.");
       }
@@ -599,35 +624,39 @@ function createRouterUpnpService({ loadSettings, recordLog, config }) {
         ["save", "save changes", "save settings", "apply"],
         "settings save button"
       );
-      requireRouterUpnpMonitorEnabled(generation);
-      const saveResponse = knownSaveButton
-        ? page.waitForResponse(response => {
-          const request = response.request();
-          return request.method() === "POST" &&
-            new URL(response.url()).pathname.toLowerCase().endsWith(
-              "/actionhandler/ajaxset_upnp_configuration.jst"
-            );
-        }, { timeout: 5000 }).catch(error => {
-          if (error.name === "TimeoutError") {
-            throw new Error("The router did not complete its UPnP save request within 5 seconds.");
+      try {
+        requireRouterUpnpMonitorEnabled(generation);
+        const saveResponse = knownSaveButton
+          ? page.waitForResponse(response => {
+            const request = response.request();
+            return request.method() === "POST" &&
+              new URL(response.url()).pathname.toLowerCase().endsWith(
+                "/actionhandler/ajaxset_upnp_configuration.jst"
+              );
+          }, { timeout: 5000 }).catch(error => {
+            if (error.name === "TimeoutError") {
+              throw new Error("The router did not complete its UPnP save request within 5 seconds.");
+            }
+            throw error;
+          })
+          : null;
+        const saveNavigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 5000 })
+          .then(() => true)
+          .catch(error => {
+            if (error.name === "TimeoutError") return false;
+            throw error;
+          });
+        await saveButton.click();
+        if (saveResponse) {
+          const response = await saveResponse;
+          if (!response.ok()) {
+            throw new Error(`The router rejected the UPnP save request (HTTP ${response.status()}).`);
           }
-          throw error;
-        })
-        : null;
-      const saveNavigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 5000 })
-        .then(() => true)
-        .catch(error => {
-          if (error.name === "TimeoutError") return false;
-          throw error;
-        });
-      await saveButton.click();
-      if (saveResponse) {
-        const response = await saveResponse;
-        if (!response.ok()) {
-          throw new Error(`The router rejected the UPnP save request (HTTP ${response.status()}).`);
         }
+        await saveNavigation;
+      } finally {
+        await disposeElements(saveButton);
       }
-      await saveNavigation;
       await captureRouterUpnpScreenshot(page);
 
       requireRouterUpnpMonitorEnabled(generation);
@@ -639,8 +668,12 @@ function createRouterUpnpService({ loadSettings, recordLog, config }) {
       await openRouterUpnpSettings(page, generation);
       requireRouterUpnpMonitorEnabled(generation);
       const savedToggle = await findUpnpToggle(page);
-      if (!savedToggle.enabled) {
-        throw new Error("The router did not retain the enabled UPnP setting after saving.");
+      try {
+        if (!savedToggle.enabled) {
+          throw new Error("The router did not retain the enabled UPnP setting after saving.");
+        }
+      } finally {
+        await disposeElements(savedToggle.element);
       }
 
       recordLog("warning", "Router UPnP", "UPnP was disabled; SimplePort enabled it and verified the saved setting.");
@@ -669,6 +702,15 @@ function createRouterUpnpService({ loadSettings, recordLog, config }) {
     } finally {
       if (page && browser && browser.connected) {
         await captureRouterUpnpScreenshot(page);
+      }
+      if (page && !page.isClosed()) {
+        try {
+          await page.close();
+        } catch (error) {
+          if (isRouterUpnpMonitorEnabled()) {
+            recordLog("error", "Router UPnP", `Could not close the router-check page: ${error.message}`);
+          }
+        }
       }
       if (browser) {
         try {
